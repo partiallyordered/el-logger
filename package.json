@@ -9,6 +9,7 @@
   "author": "Matt Kingston, ModusBox Inc",
   "license": "UNLICENSED",
   "dependencies": {
+    "json-stringify-safe": "^5.0.1",
     "sqlite": "^3.0.1"
   }
 }

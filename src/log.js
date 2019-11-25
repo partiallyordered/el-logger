@@ -1,4 +1,5 @@
-// An immutable structured logger. It uses JSON.stringify to stringify any arguments.
+// An immutable structured logger.
+//
 // TODO: either make this callable, or remove the following text indicating the logger is callable.
 //       See https://stackoverflow.com/questions/36871299/how-to-extend-function-with-es6-classes
 // It is callable, such that:
@@ -24,12 +25,14 @@
 //    for the same reason no 'pop' method has been implemented.
 
 // TODO:
-// - support log levels? just support conditional logging? (i.e. if the .level property is "in
-//   {x,y,z}" then log)
 // - just call the logger to add a message property and log that- pass all arguments to util.format
 // - support logging to a single line
-// - support 'verbose', 'debug', 'warn', 'error', 'trace', 'info', 'fatal' methods?
-// - support env var config?
+// - support  methods?
+// - directly support env var config, perhaps using "namespaced" env vars, e.g. EL_LOGGER_$VAR? Or
+//   require that the user of this lib passes config through? (Allow the user to configure whether
+//   we do this? Or just provide them some support function to pass their process.env to if they
+//   want to support it? I.e. `new Logger(generateLoggerOpts(process.env))`
+// - we should stream to transports, which should themselves probably be streams
 
 // TODO:
 // Is it possible to pretty-print log messages or strings containing new-line characters? For
@@ -38,9 +41,11 @@
 
 const util = require('util');
 
+const safeStringify = require('json-stringify-safe');
+
 const Transports = require('./transports');
 
-const contextSym = Symbol('Logger context symbol');
+// Utility functions
 
 // TODO: Is `key` necessary input to the replaceOutput function?
 const replaceOutput = (key, value) => {
@@ -58,66 +63,94 @@ const replaceOutput = (key, value) => {
     return value;
 };
 
+// space
+//   String | Number
+//   The default formatting to be supplied to the JSON.stringify method. Examples include the
+//   string '\t' to indent with a tab and the number 4 to indent with four spaces. The default,
+//   undefined, will not break lines.
+//   See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#Parameters
+// printTimestamp
+//   Boolean
+//   Whether to print a timestamp.
+// timestampFmt
+//   Function
+//   A function that accepts a Date object and produces a timestamp string.
+// stringify
+//   Function
+//   The function that will eventually perform the stringifying. Will be called with the same
+//   signature as JSON.stringify.
+const buildStringify = ({
+    space = 2,
+    printTimestamp = true,
+    timestampFmt = (ts => ts.toISOString),
+    stringify = safeStringify,
+}) => {
+    return ({ ctx, msg, level = undefined }) => {
+        const ts = printTimestamp ? timestampFmt(new Date()) : undefined;
+        return stringify({ ctx, msg, level, ts, }, replaceOutput, space);
+    };
+};
+
+const contextSym = Symbol('Logger context symbol');
+
+// Logger- main functionality
+
 class Logger {
-    // space
-    //   String | Number
-    //   The default formatting to be supplied to the JSON.stringify method. Examples include the
-    //   string '\t' to indent with a tab and the number 4 to indent with four spaces. The default,
-    //   undefined, will not break lines.
-    //   See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#Parameters
-    // printTimestamp
-    //   Boolean
-    //   Whether to print a timestamp.
-    // timestampFmt
-    //   Function
-    //   A function that accepts a Date object and produces a timestamp string.
-    // transports
-    //   Array of functions
-    //   Each function will be supplied with arguments (String msg, Date timestamp) for each log
-    //   event.
     // context
     //   Object
     //   Context data to preload in the logger. Example: { path: '/users', method: 'GET' }
     //   This logger and all loggers derived from it (with the push method) will print this context
     //   If any reserved keys exist in the new object, an error will be thrown.
+    // transports
+    //   Array of functions
+    //   Each function will be supplied with arguments (String msg, Date timestamp) for each log
+    //   event.
+    // stringify
+    //   Function
+    //   Supply a function to perform stringifying. Function signature: f(dataToStringify).
+    // opts.copy
+    //   The function to copy the context object to a new instance of this logger. Enables deep
+    //   copy. Function signature: f(orig) => copy. Default: identity function.
+    // opts.allowContextOverwrite
+    //   Allow context keys to be overwritten in copied Logger objects
+    // opts.levels
+    //   Alias methods to support log levels. Will call the `.log` method with top-level key
+    //   "level" equal to the value supplied below. E.g. providing the argument ['verbose'] to the
+    //   opts.levels parameter results in a method `.verbose` on the logger that logs thus:
+    //   { msg, ctx, level: 'verbose' }
     constructor({
         context = {},
-        space,
-        printTimestamp = true,
-        timestampFmt = ts => ts.toISOString(),
         transports = [],
+        stringify = buildStringify(),
+        opts = {
+            allowContextOverwrite = false,
+            copy = o => o,
+            levels: ['verbose', 'debug', 'warn', 'error', 'trace', 'info', 'fatal'],
+        },
     } = {}) {
-        this.opts = {};
-        this.configure({ space, printTimestamp, timestampFmt });
-        if (this.opts.printTimestamp && 'timestamp' in context) {
-            throw new Error('\'timestamp\' is a reserved logger key when providing \'timestamp: true\' to the constructor');
-        }
-        if ('msg' in context) {
-            throw new Error('\'msg\' is a reserved logger key');
-        }
-        this.opts.transports = transports;
+        this.stringify = stringify;
+        this.transports = transports;
         this[contextSym] = context;
+        this.configure(opts);
     }
 
     // Update logger configuration.
     // opts
-    //   Object. May contain any of .space, .printTimestamp, .timestampFmt
+    //   Object. May contain any of .transports, .stringify, .opts.
     //   See constructor comment for details
-    configure(opts) {
-    // TODO: check whether printTimestamp has gone from false to true, and whether the
-    // timestamp key exists in our context
-    // TODO: should we check whether a timestamp format function has been provided, but
-    // printtimestamp has been set to false?
+    configure({
+        transports = this.transports,
+        stringify = this.stringify,
+        opts = this.opts,
+    }) {
+        this.transports = transports;
+        this.stringify = stringify;
         this.opts = { ...this.opts, ...opts };
-    }
-
-    // space
-    //   String | Number
-    //   The default formatting to be supplied to the JSON.stringify method. Examples include the
-    //   string '\t' to indent with a tab and the number 4 to indent with four spaces. The default,
-    //   undefined, will not break lines.
-    setSpace(space) {
-        this.space = space;
+        this.opts.levels.forEach(level => {
+            this[level] = async (...args) => {
+                this._log(level, ...args);
+            }
+        })
     }
 
     // Create a new logger with the same context as the current logger, and additionally any
@@ -127,41 +160,42 @@ class Logger {
     //   If a key in this object already exists in this logger, an error will be thrown.
     push(context) {
         if (!context) {
-            return new Logger({ ...this.opts, context: this[contextSym] });
+            return this;
         }
         // Check none of the new context replaces any of the old context
-        if (Object.keys(context)
+        if (!this.allowContextOverwrite && Object.keys(context)
             .findIndex(k => Object.keys(this[contextSym])
                 .findIndex(l => l === k) !== -1) !== -1) {
             throw new Error('Key already exists in logger');
         }
-        return new Logger({ ...this.opts, context: { ...this[contextSym], ...context } });
+        return new Logger({
+            context: {
+                ...this[contextSym],
+                ...context
+            },
+            transports: this.transports,
+            stringify: this.stringify,
+            opts: this.opts,
+        });
     }
 
     // Log to transports.
     // args
     //   Any type is acceptable. All arguments will be passed to util.format, then printed as the
     //   'msg' property of the logged item.
+    // TODO: stream to streams!
     async log(...args) {
-    // NOTE: if printing large strings, JSON.stringify will block the event loop. This, and
-    // solutions, are discussed here:
-    // https://nodejs.org/en/docs/guides/dont-block-the-event-loop/.
-    // At the time of writing, this was considered unlikely to be a problem, as this
-    // implementation did not have any performance requirements
+        await this._log(undefined, ...args);
+    }
+
+    async _log(level, ...args) {
+        // NOTE: if printing large strings, JSON.stringify will block the event loop. This, and
+        // solutions, are discussed here:
+        // https://nodejs.org/en/docs/guides/dont-block-the-event-loop/.
+        // At the time of writing, this was considered unlikely to be a problem, as this
+        // implementation did not have any performance requirements
         const msg = args.length > 0 ? util.format(...args) : undefined;
-        const ts = new Date();
-        let output;
-        if (this.opts.printTimestamp) {
-            output = JSON.stringify({
-                ...this[contextSym],
-                msg,
-                timestamp: this.opts.timestampFmt(ts),
-            }, replaceOutput, this.opts.space);
-        } else {
-            // TODO: Define replaceErrors
-            // eslint-disable-next-line no-undef
-            output = JSON.stringify({ ...this[contextSym], msg }, replaceErrors, this.opts.space);
-        }
+        const output = this.stringify({ ctx: this[contextSym], msg, level, });
         await Promise.all(this.opts.transports.map(t => t(output, ts)));
     }
 }
@@ -169,4 +203,5 @@ class Logger {
 module.exports = {
     Logger,
     Transports,
+    buildStringify,
 };
