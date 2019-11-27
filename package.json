@@ -1,7 +1,7 @@
 {
-  "name": "@internal/log",
+  "name": "el-logger",
   "version": "0.0.1",
-  "description": "An immutable strutured logger",
+  "description": "An immutable structured logger",
   "main": "log.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
