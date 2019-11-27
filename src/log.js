@@ -43,7 +43,7 @@ const util = require('util');
 
 const safeStringify = require('json-stringify-safe');
 
-const Transports = require('./transports');
+const transportsExport = require('./transports');
 
 // Utility functions
 
@@ -107,10 +107,13 @@ class Logger {
     //   event.
     // stringify
     //   Function
-    //   Supply a function to perform stringifying. Function signature: f(dataToStringify).
+    //   Supply a function to perform stringifying.
+    //   Function signature: f(dataToStringify).
     // opts.copy
-    //   The function to copy the context object to a new instance of this logger. Enables deep
-    //   copy. Function signature: f(orig) => copy. Default: identity function.
+    //   The function to copy the context object to a new instance of this logger. Allows deep
+    //   copy, use of immutable libs etc.
+    //   Function signature: f(orig) => copy.
+    //   Default: identity function.
     // opts.allowContextOverwrite
     //   Allow context keys to be overwritten in copied Logger objects
     // opts.levels
@@ -157,7 +160,8 @@ class Logger {
     // supplied context.
     // context
     //   An object to log. Example: { path: '/users', method: 'GET' }
-    //   If a key in this object already exists in this logger, an error will be thrown.
+    //   If allowContextOverride is false and a key in this object already exists in this logger,
+    //   an error will be thrown.
     push(context) {
         if (!context) {
             return this;
@@ -170,7 +174,7 @@ class Logger {
         }
         return new Logger({
             context: {
-                ...this[contextSym],
+                ...this.opts.copy(this[contextSym]),
                 ...context
             },
             transports: this.transports,
@@ -202,6 +206,6 @@ class Logger {
 
 module.exports = {
     Logger,
-    Transports,
+    transports: transportsExport,
     buildStringify,
 };
