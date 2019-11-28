@@ -1,12 +1,5 @@
 // An immutable structured logger.
 //
-// TODO: either make this callable, or remove the following text indicating the logger is callable.
-//       See https://stackoverflow.com/questions/36871299/how-to-extend-function-with-es6-classes
-// It is callable, such that:
-//   (new require('./log'))('stuff I want logged');
-// will print:
-//   { "msg": "stuff I want logged" }
-//
 // JSON.stringify blocks the event loop. At the time of writing, performance/responsiveness were
 // not requirements of this module. If this is later required, see the discussion here for
 // solutions: https://nodejs.org/en/docs/guides/dont-block-the-event-loop/. This may necessitate
@@ -26,8 +19,6 @@
 
 // TODO:
 // - just call the logger to add a message property and log that- pass all arguments to util.format
-// - support logging to a single line
-// - support  methods?
 // - directly support env var config, perhaps using "namespaced" env vars, e.g. EL_LOGGER_$VAR? Or
 //   require that the user of this lib passes config through? (Allow the user to configure whether
 //   we do this? Or just provide them some support function to pass their process.env to if they
