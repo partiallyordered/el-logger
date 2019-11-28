@@ -84,7 +84,7 @@ const buildStringify = ({
     printTimestamp = true,
     timestampFmt = (ts => ts.toISOString),
     stringify = safeStringify,
-}) => {
+} = {}) => {
     return ({ ctx, msg, level = undefined }) => {
         const ts = printTimestamp ? timestampFmt(new Date()) : undefined;
         return stringify({ ctx, msg, level, ts, }, replaceOutput, space);
@@ -125,16 +125,22 @@ class Logger {
         context = {},
         transports = [],
         stringify = buildStringify(),
-        opts = {
+        opts: {
             allowContextOverwrite = false,
             copy = o => o,
-            levels: ['verbose', 'debug', 'warn', 'error', 'trace', 'info', 'fatal'],
-        },
+            levels = ['verbose', 'debug', 'warn', 'error', 'trace', 'info', 'fatal'],
+        } = {},
     } = {}) {
-        this.stringify = stringify;
-        this.transports = transports;
         this[contextSym] = context;
-        this.configure(opts);
+        this.configure({
+            stringify,
+            transports,
+            opts: {
+                allowContextOverwrite,
+                copy,
+                levels,
+            }
+        });
     }
 
     // Update logger configuration.
@@ -167,9 +173,11 @@ class Logger {
             return this;
         }
         // Check none of the new context replaces any of the old context
-        if (!this.allowContextOverwrite && Object.keys(context)
-            .findIndex(k => Object.keys(this[contextSym])
-                .findIndex(l => l === k) !== -1) !== -1) {
+        const arrayIntersection = (a1, a2) => a1.filter(v => a2.includes(v));
+        const objKeysIntersection = (o1, o2) => arrayIntersection(Object.keys(o1), Object.keys(o2));
+        if (!this.allowContextOverwrite &&
+            objKeysIntersection(context, this[contextSym]).length > 0
+        ) {
             throw new Error('Key already exists in logger');
         }
         return new Logger({
@@ -200,7 +208,7 @@ class Logger {
         // implementation did not have any performance requirements
         const msg = args.length > 0 ? util.format(...args) : undefined;
         const output = this.stringify({ ctx: this[contextSym], msg, level, });
-        await Promise.all(this.opts.transports.map(t => t(output, ts)));
+        await Promise.all(this.transports.map(t => t(output)));
     }
 }
 
