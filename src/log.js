@@ -82,12 +82,12 @@ const replaceOutput = (key, value) => {
 const buildStringify = ({
     space = 2,
     printTimestamp = true,
-    timestampFmt = (ts => ts.toISOString),
+    timestampFmt = (ts => ts.toISOString()),
     stringify = safeStringify,
 } = {}) => {
     return ({ ctx, msg, level = undefined }) => {
         const ts = printTimestamp ? timestampFmt(new Date()) : undefined;
-        return stringify({ ctx, msg, level, ts, }, replaceOutput, space);
+        return stringify({ ts, level, msg, ctx, }, replaceOutput, space);
     };
 };
 
@@ -195,7 +195,6 @@ class Logger {
     // args
     //   Any type is acceptable. All arguments will be passed to util.format, then printed as the
     //   'msg' property of the logged item.
-    // TODO: stream to streams!
     async log(...args) {
         await this._log(undefined, ...args);
     }
@@ -206,6 +205,7 @@ class Logger {
         // https://nodejs.org/en/docs/guides/dont-block-the-event-loop/.
         // At the time of writing, this was considered unlikely to be a problem, as this
         // implementation did not have any performance requirements
+        // TODO: stream json to streams?
         const msg = args.length > 0 ? util.format(...args) : undefined;
         const output = this.stringify({ ctx: this[contextSym], msg, level, });
         await Promise.all(this.transports.map(t => t(output)));
