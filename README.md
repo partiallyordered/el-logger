@@ -1,7 +1,9 @@
 # el-logger
 A structured context logger.
 
+### API
 Go read the code, at the time of writing the logger itself is 100 SLOC, and the transports are 36.
+It's fairly well-commented.
 
 ### Basic Usage
 ```javascript
