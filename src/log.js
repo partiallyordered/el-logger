@@ -41,6 +41,27 @@ const transportsExport = require('./transports');
 // TODO: Is `key` necessary input to the replaceOutput function?
 const replaceOutput = (key, value) => {
     if (value instanceof Error) {
+        // If the error has a stack represented as a new-line delimited string, turn it into an
+        // array for easier consumption.
+        // TODO: if it has a consistent output, this may be able to be converted into an object
+        // such as:
+        // {
+        //   cause: "ReferenceError: foo is not defined",
+        //   stack: [
+        //     {
+        //       inFunction: Object.query,
+        //       file: src/bar.js,
+        //       line: 22,
+        //       column: 33,
+        //     },
+        //     ...
+        //   ]
+        // }
+        // Is that feasible? Desirable?
+        if (value.stack && (typeof value.stack === 'string')) {
+            // Note that this will only modify our local copy of value.stack
+            value.stack = value.stack.split('\n').map(line => line.trim());
+        }
         return Object
             .getOwnPropertyNames(value)
             .reduce((acc, objectKey) => ({ ...acc, [objectKey]: value[objectKey] }), {});
@@ -162,6 +183,9 @@ class Logger {
     push(context) {
         if (!context) {
             return this;
+        }
+        if (typeof context !== 'object') {
+            throw new Error('Context must be a POJO. Instead of .push(x) use .push({ x })');
         }
         // Check none of the new context replaces any of the old context
         const arrayIntersection = (a1, a2) => a1.filter(v => a2.includes(v));
