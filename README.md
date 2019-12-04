@@ -21,7 +21,7 @@ answerLogger.log('we\'ve got the answer, but what is the question?');
 // Prints:
 // {
 //   "ts": "2019-12-02T16:28:56.316Z",
-//   "msg": "but wht is the question?",
+//   "msg": "but what is the question?",
 //   "ctx": {
 //     "answer": 42
 //   }
@@ -42,8 +42,8 @@ questionLogger.log('oh, of course')
 ### Why?
 Trying to figure out how your request is being handled, but struggling to correlate a number of
 interleaved asynchronous events? Add a request id to the logger context as soon as you receive your
-request, and watch it get attached to every log line. Now, use a structured log viewer and a query
-string such as:
+request, and watch it get attached to every log line. Now, use a structured log viewer and a filter
+such as:
 ```
 .request.id = '1911e087-66a7-4a7c-bce6-be2177ea4977'
 ```
